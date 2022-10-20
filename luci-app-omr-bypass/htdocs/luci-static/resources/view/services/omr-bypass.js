@@ -190,7 +190,7 @@ return L.view.extend({
 		o = s.option(form.Flag, 'enabled', _('Enabled'));
 		o.default = o.enabled;
 
-		o = s.option(form.Value, 'proto', _('Protocol/Service'));
+		o = s.option(form.ListValue, 'proto', _('Protocol/Service'));
 		o.rmempty = false;
 		o.load = function(section_id) {
 			return Promise.all([
@@ -222,6 +222,9 @@ return L.view.extend({
 		o.noaliases = true;
 		o.noinactive = true;
 		o.nocreate    = true;
+
+		o = s.option(form.Flag, 'ndpi', _('Enable ndpi'));
+		o.default = o.enabled;
 
 		o = s.option(form.Value, 'note', _('Note'));
 		o.rmempty = true;

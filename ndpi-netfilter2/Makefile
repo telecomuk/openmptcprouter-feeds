@@ -11,8 +11,8 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=ndpi-netfilter2
 PKG_RELEASE:=3
-PKG_REV:=25a5c2e1d619aa2d819b18bed8276b3bd7eb4c5b
-PKG_VERSION:=3.2-$(PKG_REV)
+PKG_REV:=b19e6392cf0c7d51c44e076a91fc4db0cbbd6403
+PKG_VERSION:=4-$(PKG_REV)
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
@@ -39,33 +39,24 @@ define Package/iptables-mod-ndpi/description
   nDPI is a ntop-maintained superset of the popular OpenDPI library
 endef
 
-#CONFIGURE_CMD = ./autogen.sh
-#CONFIGURE_ARGS += --with-pic
-MAKE_PATH := ndpi-netfilter
+CONFIGURE_CMD=./autogen.sh
+CONFIGURE_ARGS += --with-pic
+
+MAKE_PATH:=ndpi-netfilter
 
 MAKE_FLAGS += \
     KERNEL_DIR="$(LINUX_DIR)" \
     MODULES_DIR="$(TARGET_MODULES_DIR)" \
     ARCH="$(LINUX_KARCH)" \
+    KERNEL_RELEASE="$(KERNEL_PATCHVER)" \
     CROSS_COMPILE="$(TARGET_CROSS)" \
+    CC="$(TARGET_CC)" \
     NDPI_PATH=$(PKG_BUILD_DIR)/ndpi-netfilter
-
-define Build/Configure
-	cd $(PKG_BUILD_DIR) && \
-	    CC="" ./autogen.sh \
-	    --host="$(GNU_TARGET_NAME)"
-#	    --with-pic \
-#	    CFLAGS="$(TARGET_CFLAGS)" \
-#	    HOST_CFLAGS="$(BUILD_CFLAGS)" \
-#	    BUILD_CPPFLAGS="$(TARGET_CPPLAGS)" \
-#	    BUILD_CFLAGS="$(TARGET_CFLAGS)" \
-#	    BUILD_LDFLAGS="$(TARGET_LDFLAGS)"
-endef
 
 define Build/Compile
 	(cd $(PKG_BUILD_DIR)/src/lib &&\
 	    gcc -g -O2 -fPIC -DPIC -DNDPI_LIB_COMPILATION -I../../src/include/ -I../../src/lib/third_party/include/ ndpi_network_list_compile.c -o ndpi_network_list_compile &&\
-	    ./ndpi_network_list_compile -o ndpi_network_list.c.inc ndpi_network_list_std.yaml ndpi_network_list_tor.yaml)
+	    ./ndpi_network_list_compile -o ndpi_network_list.c.inc ndpi_network_list_*.yaml)
 	$(MAKE) $(MAKE_FLAGS) -C $(PKG_BUILD_DIR)/ndpi-netfilter
 endef
 
