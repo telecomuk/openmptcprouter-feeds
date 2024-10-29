@@ -22,7 +22,7 @@ _setup_macvlan() {
 	set network.$1_dev.type=macvlan
 	set network.$1_dev.ifname=$_ifname
 	set network.$1_dev.mode='vepa'
-	set network.$1_dev.txqueuelen=20
+	set network.$1_dev.txqueuelen=1000
 	set network.$1.device=$1
 	set network.$1.type=macvlan
 	set network.$1.masterintf=$_ifname
@@ -63,10 +63,11 @@ _setup_wan_interface() {
 	set network.$1.ip4table=wan
 	set network.$1.multipath=$3
 	set network.$1.defaultroute=0
+	set network.$1.delegate=0
 	set network.$1.addlatency=0
 	set network.${1}_dev=device
 	set network.${1}_dev.name=$2
-	set network.${1}_dev.txqueuelen=20
+	set network.${1}_dev.txqueuelen=1000
 	commit network
 	add_list firewall.@zone[1].network=$1
 	commit firewall
@@ -78,6 +79,25 @@ config_load network
 #config_foreach _setup_macvlan_update interface
 config_foreach _setup_mptcp_handover_to_on interface
 
+_fix_metrics() {
+	uci -q batch <<-EOF
+	delete openmptcprouter.$1.metric
+	delete network.$1.metric
+	commit openmptcprouter
+	commit network
+	EOF
+}
+
+config_load openmptcprouter
+config_foreach _fix_metrics interface
+
+if [ -z "$(uci -q get network.globals.packet_steering)" ]; then
+	uci -q batch <<-EOF
+		set network.globals.packet_steering="0"
+		commit network
+	EOF
+fi
+
 if [ "$(uci -q show network.lan | grep multipath)" != "" ]; then
 	exit 0
 fi
@@ -85,12 +105,16 @@ fi
 lanif="eth0"
 if [ "$(grep rockchip /etc/os-release)" != "" ]; then
 	lanif="eth1"
+elif [ "$(grep filogic /etc/os-release)" != "" ]; then
+	lanif="eth1"
 elif [ -d /sys/class/net/lan0 -o -n "$(ip link | grep ' lan0')" ] && [ -d /sys/class/net/wan -o -n "$(ip link | grep ' wan@')" -o -n "$(ip link | grep ' wan:')" ]; then
 	lanif="wan"
 elif [ -d /sys/class/net/lan1 -o -n "$(ip link | grep ' lan1')" ] && [ -d /sys/class/net/wan -o -n "$(ip link | grep ' wan@')" -o -n "$(ip link | grep ' wan:')" ]; then
 	lanif="wan"
-elif [ -d /sys/class/net/lan ] || [ -n "$(ip link | grep ' lan')" ]; then
+elif [ -d /sys/class/net/lan ] || [ -n "$(ip link | grep ' lan:')" ]; then
 	lanif="lan"
+elif [ -d /sys/class/net/lan1] || [ -n "$(ip link | grep ' lan1:')" ]; then
+	lanif="lan1"
 elif [ "$(swconfig list 2>&1 | grep switch0)" != "" ] && [ "$(cat /etc/board.json | jsonfilter -q -e '@.model.platform' | tr -d '\n')" = "RUTX" ]; then
 	lanif="eth1"
 	uci -q batch <<-EOF
@@ -167,6 +191,8 @@ set network.lan.metric=2048
 set network.lan.ipv6=0
 set network.lan.delegate=0
 set network.lan.addlatency=0
+set network.lan.txqueuelen=2000
+set dhcp.lan.dhcpv4='server'
 EOF
 
 uci -q batch <<-EOF
@@ -189,6 +215,10 @@ uci -q show network.lan_rule >/dev/null || \
 
 if [ "$(uci -q get network.vpn0.proto)" = "none" ]; then
 	uci -q delete network.vpn0
+fi
+
+if [ "$(uci -q get network.wan6.proto)" = "dhcpv6" ]; then
+	uci -q delete network.wan6
 fi
 
 config_load network
@@ -267,6 +297,19 @@ if [ "$(uci -q show network.wan1 | grep multipath)" = "" ] && [ -z "$(uci -q get
 			_setup_macvlan wan1
 			_setup_macvlan wan2
 		fi
+	elif [ "$lanif" != "lan1" ] && [ -d /sys/class/net/lan1 -o -n "$(ip link | grep ' lan1')" ] && [ -d /sys/class/net/lan2 -o -n "$(ip link | grep ' lan2')" ] && [ -d /sys/class/net/lan3 -o -n "$(ip link | grep ' lan3')" ] && [ -d /sys/class/net/lan4 -o -n "$(ip link | grep ' lan4')" ]; then
+		_setup_wan_interface wan1 lan1 master
+		_setup_wan_interface wan2 lan2 on
+		_macaddr=$(uci -q get "network.lan1.macaddr")
+		_setup_macaddr "wan1" "${_macaddr:-$(dd if=/dev/urandom bs=1024 count=1 2>/dev/null | md5sum | sed -e 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4:\5:\6/' -e 's/^\(.\)[13579bdf]/\10/')}"
+		_macaddr=$(uci -q get "network.lan2.macaddr")
+		_setup_macaddr "wan2" "${_macaddr:-$(dd if=/dev/urandom bs=1024 count=1 2>/dev/null | md5sum | sed -e 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4:\5:\6/' -e 's/^\(.\)[13579bdf]/\10/')}"
+		_setup_wan_interface wan3 lan3 on
+		_macaddr=$(uci -q get "network.lan3.macaddr")
+		_setup_macaddr "wan3" "${_macaddr:-$(dd if=/dev/urandom bs=1024 count=1 2>/dev/null | md5sum | sed -e 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4:\5:\6/' -e 's/^\(.\)[13579bdf]/\10/')}"
+		_setup_wan_interface wan4 lan4 on
+		_macaddr=$(uci -q get "network.lan4.macaddr")
+		_setup_macaddr "wan4" "${_macaddr:-$(dd if=/dev/urandom bs=1024 count=1 2>/dev/null | md5sum | sed -e 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\).*$/\1:\2:\3:\4:\5:\6/' -e 's/^\(.\)[13579bdf]/\10/')}"
 	elif [ -d /sys/class/net/wan1 ] || [ -n "$(ip link | grep ' wan1')" ]; then
 		if [ -d /sys/class/net/wan2 ] || [ -n "$(ip link | grep ' wan2')" ]; then
 			_setup_wan_interface wan1 wan1 master
@@ -324,6 +367,14 @@ if [ "$(uci -q show network.wan1 | grep multipath)" = "" ] && [ -z "$(uci -q get
 	elif [ -d /sys/class/net/eth0.1 ] && [ -d /sys/class/net/eth0.2 ]; then
 		_setup_wan_interface wan1 eth0.1 master
 		_setup_wan_interface wan2 eth0.2 on
+	elif [ "$lanif" = "lan1" ] && [ -d /sys/class/net/lan2 -o -n "$(ip link | grep ' lan2')" ] && [ -d /sys/class/net/lan3 -o -n "$(ip link | grep ' lan3')" ] && [ -d /sys/class/net/lan4 -o -n "$(ip link | grep ' lan4')" ]; then
+		_setup_wan_interface wan1 lan2 master
+		_setup_wan_interface wan2 lan3 on
+		_setup_wan_interface wan3 lan4 on
+		if [ -d /sys/class/net/10g-1 ] && [ -d /sys/class/net/10g-2 ]; then
+			_setup_wan_interface wan3 10g-1 on
+			_setup_wan_interface wan3 10g-2 on
+		fi
 	else
 		_setup_wan_interface wan1 eth0 master macvlan
 		_setup_wan_interface wan2 eth0 on macvlan
@@ -345,7 +396,7 @@ uci -q delete network.loopback.ifname
 uci -q set network.loopback.device='lo'
 
 local board=$(board_name)
-if [ "$board" = "teltonika,rutx" ] && [ -f /sbin/mnf_info ]; then
+if ([ "$board" = "teltonika,rutx" ] || [ "$board" = "teltonika,rutx12" ] || [ "$board" = "teltonika,rutx50" ]) && [ -f /sbin/mnf_info ]; then
 	# Same part for RUTX12 and RUTX11, maybe other RUTX ?
 	uci -q batch <<-EOF
 	set network.modem1=interface
@@ -359,6 +410,7 @@ if [ "$board" = "teltonika,rutx" ] && [ -f /sbin/mnf_info ]; then
 	set network.modem1.peerdns='0'
 	set network.modem1.multipath='on'
 	set network.modem1.defaultroute='0'
+	set network.modem1.delegate='0'
 	commit network
 	add_list firewall.@zone[1].network='modem1'
 	commit firewall
@@ -374,12 +426,18 @@ if [ "$board" = "teltonika,rutx" ] && [ -f /sbin/mnf_info ]; then
 		set network.modem2.force_link='1'
 		set network.modem2.device='/sys/devices/platform/soc/8af8800.usb3/8a00000.dwc3/xhci-hcd.0.auto/usb1/1-1/1-1.2'
 		set network.modem2.peerdns='0'
+		set network.modem2.delegate='0'
 		set network.modem2.multipath='on'
 		set network.modem2.defaultroute='0'
 		set network.modem2.ip4table=wan
 		commit network
 		add_list firewall.@zone[1].network='modem2'
 		commit firewall
+		EOF
+	fi
+	if [ "$(mnf_info -n)" = "RUTX5000XXXX" ]; then
+		uci -q batch <<-EOF
+		set network.modem1.device='/sys/devices/platform/soc/8af8800.usb3/8a00000.dwc3/xhci-hcd.0.auto/usb2/2-1'
 		EOF
 	fi
 	uci -q batch <<-EOF
@@ -401,9 +459,47 @@ if [ "$board" = "teltonika,rutx" ] && [ -f /sbin/mnf_info ]; then
 	EOF
 
 fi
-
+if [ "$board" = "z8102ax-128m" ] || [ "$board" = "z8102ax-64m" ] || [ "$board" = "z8102ax" ]; then
+	uci -q batch <<-EOF
+	set network.modem1=interface
+	set network.modem1.proto='modemmanager'
+	set network.modem1.apn=''
+	set network.modem1.auth='none'
+	set network.modem1.iptype='ipv4v6'
+	set network.modem1.addlatency='0'
+	set network.modem1.force_link='1'
+	set network.modem1.device='/sys/devices/platform/soc/11200000.usb/usb1/1-1/1-1.1'
+	set network.modem1.peerdns='0'
+	set network.modem1.delegate='0'
+	set network.modem1.multipath='on'
+	set network.modem1.defaultroute='0'
+	set network.modem2=interface
+	set network.modem2.proto='modemmanager'
+	set network.modem2.apn=''
+	set network.modem2.auth='none'
+	set network.modem2.iptype='ipv4v6'
+	set network.modem2.addlatency='0'
+	set network.modem2.force_link='1'
+	set network.modem2.device='/sys/devices/platform/soc/11200000.usb/usb1/1-1/1-1.2'
+	set network.modem2.peerdns='0'
+	set network.modem2.delegate='0'
+	set network.modem2.multipath='on'
+	set network.modem2.defaultroute='0'
+	commit network
+	add_list firewall.@zone[1].network='modem1'
+	add_list firewall.@zone[1].network='modem2'
+	commit firewall
+	EOF
+fi
+#	set network.lan.ipaddr='192.168.5.10'
+#	set network.lan.gateway='192.168.5.1'
 
 uci -q commit macvlan
 uci -q commit network
+uci -q commit dhcp
+# Disable ttyd by default
+uci -q set ttyd.ttyd1.enable='0'
+uci -q commit ttyd
+
 rm -f /tmp/luci-indexcache
 exit 0

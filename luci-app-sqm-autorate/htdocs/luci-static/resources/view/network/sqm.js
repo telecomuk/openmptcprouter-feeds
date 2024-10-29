@@ -260,6 +260,10 @@ return view.extend({
 		o.default = false;
 		o.depends("autorate","1");
 
+		o = s.taboption("tab_autorate", form.Flag, "sss_compensation", _("Starlink support"));
+		o.default = false;
+		o.depends("autorate","1");
+
 		o = s.taboption("tab_autorate", form.Value, "reflector_ping_interval_s", _("Reflector ping interval in seconds:"));
 		o.default = "0.2";
 		o.depends("autorate","1");
@@ -269,7 +273,7 @@ return view.extend({
 		o.depends("autorate","1");
 
 		o = s.taboption("tab_autorate", form.Value, "delay_thr_ms",_("delay threshold in ms:"));
-		o.default = "25";
+		o.default = "25.0";
 		o.depends("autorate","1");
 
 		o = s.taboption("tab_autorate", form.Flag, "enable_sleep_function", _("Sleep functionnality"));
@@ -285,7 +289,8 @@ return view.extend({
 		o.depends("autorate","1");
 
 		o = s.taboption("tab_autorate", form.Value, "startup_wait_s",_("Number of seconds to wait on startup:"));
-		o.default = "60";
+		o.default = "60.0";
+		o.datatype = 'float'
 		o.depends("autorate","1");
 
 

@@ -86,9 +86,9 @@ if [ "$(uci -q get openmptcprouter.settings.check_ipv6_website)" = "" ]; then
 		commit openmptcprouter
 	EOF
 fi
-if [ "$(uci -q get openmptcprouter.settings.status_vps_timeout)" = "" ]; then
+if [ "$(uci -q get openmptcprouter.settings.status_vps_timeout)" = "" ] || [ "$(uci -q get openmptcprouter.settings.status_vps_timeout)" = "1" ]; then
 	uci -q batch <<-EOF >/dev/null
-		set openmptcprouter.settings.status_vps_timeout=1
+		set openmptcprouter.settings.status_vps_timeout=3
 		commit openmptcprouter
 	EOF
 fi
@@ -135,11 +135,11 @@ _set_omr_ip() {
 	server=$1
 	serverip="$(uci -q get openmptcprouter.${server}.ip)"
 	if [ -n "$serverip" ]; then
-		uci -q batch <<-EOF >/dev/null
-			delete openmptcprouter.${server}.ip
-			add_list openmptcprouter.${server}.ip="${serverip}"
-			commit openmptcprouter
-		EOF
+		uci -q delete openmptcprouter.${server}.ip
+		for ip in ${serverip}; do
+			uci -q add_list openmptcprouter.${server}.ip="${ip}"
+		done
+		uci -q commit openmptcprouter
 	fi
 }
 

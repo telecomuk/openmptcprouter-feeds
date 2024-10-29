@@ -6,13 +6,12 @@ if [ "$(uci -q get network.omrvpn)" = "" ]; then
 		delete network.omrvpn
 		set network.omrvpn=interface
 		set network.omrvpn.device=tun0
-		set network.omrvpn.proto=dhcp
+		set network.omrvpn.proto=none
 		set network.omrvpn.ip4table=vpn
 		set network.omrvpn.multipath=off
 		set network.omrvpn.leasetime=12h
 		set network.omrvpn.type=tunnel
 		set network.omrvpn.txqueuelen=100
-		set network.omrvpn.metric=1200
 		commit network
 	EOF
 fi
@@ -36,9 +35,8 @@ if [ "$(uci -q get openvpn.omr.proto)" != "tcp-client" ]; then
 		set openvpn.omr=openvpn
 		set openvpn.omr.dev=tun0
 		set openvpn.omr.port=65301
-		set openvpn.omr.cipher=AES-256-CBC
+		set openvpn.omr.cipher=AES-256-GCM
 		set openvpn.omr.proto=tcp-client
-		set openvpn.omr.ncp_disable=1
 		set openvpn.omr.auth_nocache=1
 		set openvpn.omr.client=1
 		set openvpn.omr.tls_client=1
@@ -47,11 +45,28 @@ if [ "$(uci -q get openvpn.omr.proto)" != "tcp-client" ]; then
 		set openvpn.omr.sndbuf=0
 		set openvpn.omr.rcvbuf=0
 		set openvpn.omr.route_delay=5
+		set openvpn.omr.disable_dco=1
+		set openvpn.omr.ping_restart=60
 		commit openvpn
 	EOF
 fi
+if [ -z "$(uci -q get openvpn.omr.disable_dco)" ]; then
+	uci -q batch <<-EOF >/dev/null
+		set openvpn.omr.disable_dco=1
+		commit openvpn
+	EOF
+fi
+if [ -z "$(uci -q get openvpn.omr.ping_restart)" ]; then
+	uci -q batch <<-EOF >/dev/null
+		set openvpn.omr.ping_restart=60
+		commit openvpn
+	EOF
+
+fi
+
 
 uci -q delete openvpn.omr.secret
+uci -q delete openvpn.omr.ncp_disable=0
 
 #if [ "$(uci -q get openvpn.omr.com_lzo)" = "" ]; then
 #	uci -q batch <<-EOF >/dev/null
@@ -146,7 +161,24 @@ if [ "$(uci -q get glorytun-udp.vpn.key)" = "" ] && [ "$(uci -q get glorytun.vpn
 	uci -q commit glorytun-udp
 fi
 
+if [ "$(uci -q get network.tun0.mtu)" = "1200" ] || [ -z "$(uci -q get network.tun0.mtu)" ]; then
+	uci -q batch <<-EOF >/dev/null
+		set network.tun0=device
+		set network.tun0.name='tun0'
+		set network.tun0.mtu=1500
+		commit network
+	EOF
+fi
 
+# Set the default VPN
+if [ "$(uci -q get openmptcprouter.settings.vpn)" = "" ]; then
+	uci -q batch <<-EOF >/dev/null
+		set openmptcprouter.settings.vpn='openvpn'
+		set glorytun.vpn.enable='1'
+		commit glorytun
+		commit openmptcprouter
+	EOF
+fi
 
 rm -f /tmp/luci-indexcache
 exit 0

@@ -5,15 +5,18 @@ PKG_RELEASE:=1
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL=$(PROJECT_GIT)/project/netifd.git
-PKG_SOURCE_DATE:=2021-07-26
-PKG_SOURCE_VERSION:=440eb0647708274cc8d7d9e7c2bb0cfdfba90023
-PKG_MIRROR_HASH:=eed957036ab608fdc49bdf801fc5b4405fcd2a3a5e5d3343ec39898e156c10e9
+#PKG_SOURCE_DATE:=2023-11-20
+#PKG_SOURCE_VERSION:=f3e06e81b347bbdec1c6c71603328b6e442728d4
+#PKG_MIRROR_HASH:=f16dd61aede5597fd7b5ee8e7752a916494281bc981b35c16e788ddb7409584a
+PKG_SOURCE_DATE:=2023-11-14
+PKG_SOURCE_VERSION:=8587c074f1eb2064c42adb0a6aa5073f695ab89d
+PKG_MIRROR_HASH:=f5ceb771badd7a23cceb53537299580d4b483e2b3ec5de09b9c3c54692893dd9
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=
 
-PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=lto
 
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
@@ -21,6 +24,7 @@ include $(INCLUDE_DIR)/cmake.mk
 define Package/netifd
   SECTION:=base
   CATEGORY:=Base system
+#  DEPENDS:=+libuci +libnl-tiny +libubus +ubus +ubusd +jshn +libubox +libudebug
   DEPENDS:=+libuci +libnl-tiny +libubus +ubus +ubusd +jshn +libubox
   TITLE:=OpenWrt Network Interface Configuration Daemon
 endef
@@ -32,10 +36,7 @@ endef
 
 TARGET_CFLAGS += \
 	-I$(STAGING_DIR)/usr/include/libnl-tiny \
-	-I$(STAGING_DIR)/usr/include \
-	-flto
-
-TARGET_LDFLAGS += -flto -fuse-linker-plugin
+	-I$(STAGING_DIR)/usr/include
 
 CMAKE_OPTIONS += \
 	-DLIBNL_LIBS=-lnl-tiny \

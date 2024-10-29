@@ -4,7 +4,7 @@ local ifaces = sys.net:devices()
 local m, s, o
 local uname = nixio.uname()
 
-m = Map("network", translate("MPTCP"), translate("Networks MPTCP settings. Visit <a href='http://multipath-tcp.org/pmwiki.php/Users/ConfigureMPTCP'>http://multipath-tcp.org/pmwiki.php/Users/ConfigureMPTCP</a> for help."))
+m = Map("network", translate("MPTCP"), translate("Networks MPTCP settings."))
 
 local unameinfo = nixio.uname() or { }
 
@@ -15,13 +15,18 @@ o:value("disable", translate("disable"))
 o = s:option(ListValue, "mptcp_checksum", translate("Multipath TCP checksum"))
 o:value(1, translate("enable"))
 o:value(0, translate("disable"))
-o = s:option(ListValue, "mptcp_debug", translate("Multipath Debug"))
-o:value(1, translate("enable"))
-o:value(0, translate("disable"))
+
+if uname.release:sub(1,4) ~= "5.15" and uname.release:sub(1,1) ~= "6" then
+    o = s:option(ListValue, "mptcp_debug", translate("Multipath Debug"))
+    o:value(1, translate("enable"))
+    o:value(0, translate("disable"))
+end
+
 o = s:option(ListValue, "mptcp_path_manager", translate("Multipath TCP path-manager"), translate("Default is fullmesh"))
 o:value("default", translate("default"))
 o:value("fullmesh", "fullmesh")
-if uname.release:sub(1,4) ~= "5.14" then
+--if tonumber(uname.release:sub(1,4)) <= 5.15 then
+if uname.release:sub(1,4) ~= "5.15" and uname.release:sub(1,1) ~= "6" then
     o:value("ndiffports", "ndiffports")
     o:value("binder", "binder")
     if uname.release:sub(1,4) ~= "4.14" then
@@ -30,7 +35,8 @@ if uname.release:sub(1,4) ~= "5.14" then
 end
 o = s:option(ListValue, "mptcp_scheduler", translate("Multipath TCP scheduler"))
 o:value("default", translate("default"))
-if uname.release:sub(1,4) ~= "5.15" then
+-- if tonumber(uname.release:sub(1,4)) <= 5.15 then
+if uname.release:sub(1,4) ~= "5.15" and uname.release:sub(1,1) ~= "6" then
     o:value("roundrobin", "round-robin")
     o:value("redundant", "redundant")
     if uname.release:sub(1,4) ~= "4.14" then
@@ -38,12 +44,24 @@ if uname.release:sub(1,4) ~= "5.15" then
 	o:value("ecf", "ECF")
     end
 end
-if uname.release:sub(1,4) ~= "5.15" then
+if uname.release:sub(1,3) == "6.6" then
+    for dir in io.popen([[cd /usr/share/bpf/scheduler && ls -1 *.o | sed -e 's/.o//g' -e 's/mptcp_//g']]):lines() do 
+	o:value(dir, dir)
+    end
+    -- bpf_burst => same as the default scheduler
+    -- bpf_red => sends all packets redundantly on all available subflows
+    -- bpf_first => always picks the first subflow to send data
+    -- bpf_rr => always picks the next available subflow to send data (round-robin)
+end
+
+-- if tonumber(uname.release:sub(1,4)) <= 5.15 then
+if uname.release:sub(1,4) ~= "5.15" and uname.release:sub(1,1) ~= "6" then
     o = s:option(Value, "mptcp_syn_retries", translate("Multipath TCP SYN retries"))
     o.datatype = "uinteger"
     o.rmempty = false
 end
-if uname.release:sub(1,4) ~= "5.15" then
+-- if tonumber(uname.release:sub(1,4)) <= 5.15 then
+if uname.release:sub(1,4) ~= "5.15" and uname.release:sub(1,1) ~= "6" then
     o = s:option(ListValue, "mptcp_version", translate("Multipath TCP version"))
     o:value(0, translate("0"))
     o:value(1, translate("1"))
@@ -52,24 +70,86 @@ end
 o = s:option(ListValue, "congestion", translate("Congestion Control"),translate("Default is cubic"))
 local availablecong = sys.exec("sysctl -n net.ipv4.tcp_available_congestion_control | xargs -n1 | sort | xargs")
 for cong in string.gmatch(availablecong, "[^%s]+") do
-	o:value(cong, translate(cong))
+	if cong == "bbr" and string.match(availablecong, "bbr1") then
+		o:value(cong, "bbr3")
+	else
+		o:value(cong, cong)
+	end
 end
 
-if uname.release:sub(1,4) == "5.15" then
-    o = s:option(Value, "mptcp_subflows", translate("specifies the maximum number of additional subflows allowed for each MPTCP connection"))
+-- if tonumber(uname.release:sub(1,4)) >= 5.15 then
+if uname.release:sub(1,4) == "5.15" or uname.release:sub(1,1) == "6" then
+    if uname.release:sub(1,1) == "6" then
+	-- Only available since 5.19
+        o = s:option(ListValue, "mptcp_pm_type", translate("Path Manager type"))
+        o:value(0, translate("In-kernel path manager"))
+        o:value(1, translate("Userspace path manager"))
+        o.default = 0
+    end
+
+    o = s:option(ListValue, "mptcp_disable_initial_config", translate("Initial MPTCP configuration"))
+    o:depends("mptcp_pm_type",1)
+    o:value("0", translate("enable"))
+    o:value("1", translate("disable"))
+    o.default = "0"
+
+    o = s:option(ListValue, "mptcp_force_multipath", translate("Force Multipath configuration"))
+    o:depends("mptcp_pm_type",1)
+    o:value("1", translate("enable"))
+    o:value("0", translate("disable"))
+    o.default = "1"
+
+    o = s:option(ListValue, "mptcpd_enable", translate("Enable MPTCPd"))
+    o:depends("mptcp_pm_type",1)
+    o:value("enable", translate("enable"))
+    o:value("disable", translate("disable"))
+    o.default = "disable"
+
+    o = s:option(DynamicList, "mptcpd_path_manager", translate("MPTCPd path managers"))
+    for dir in io.popen([[cd /usr/lib/mptcpd && ls -1 *.so | sed 's/.so//g']]):lines() do 
+	o:value(dir, dir)
+    end
+    o:depends("mptcp_pm_type",1)
+
+    o = s:option(DynamicList, "mptcpd_plugins", translate("MPTCPd plugins"))
+    for dir in io.popen([[cd /usr/lib/mptcpd && ls -1 *.so | sed 's/.so//g']]):lines() do 
+	o:value(dir, dir)
+    end
+    o:depends("mptcp_pm_type",1)
+
+    o = s:option(DynamicList, "mptcpd_addr_flags", translate("MPTCPd Address annoucement flags"))
+    o:value("subflow","subflow")
+    o:value("signal","signal")
+    o:value("backup","backup")
+    o:value("fullmesh","fullmesh")
+    o:depends("mptcp_pm_type",1)
+
+    o = s:option(DynamicList, "mptcpd_notify_flags", translate("MPTCPd Address notification flags"))
+    o:value("existing","existing")
+    o:value("skip_link_local","skip_link_local")
+    o:value("skip_loopback","skip_loopback")
+    o:depends("mptcp_pm_type",1)
+
+    o = s:option(Value, "mptcp_subflows", translate("Max subflows"),translate("specifies the maximum number of additional subflows allowed for each MPTCP connection"))
     o.datatype = "uinteger"
     o.rmempty = false
     o.default = 3
-    
-    o = s:option(Value, "mptcp_add_addr_accepted", translate("specifies the maximum number of ADD_ADDR suboptions accepted for each MPTCP connection"))
+
+    o = s:option(Value, "mptcp_stale_loss_cnt", translate("Retranmission intervals"),translate("The number of MPTCP-level retransmission intervals with no traffic and pending outstanding data on a given subflow required to declare it stale. A low stale_loss_cnt value allows for fast active-backup switch-over, an high value maximize links utilization on edge scenarios e.g. lossy link with high BER or peer pausing the data processing."))
+    o.datatype = "uinteger"
+    o.rmempty = false
+    o.default = 4
+
+    o = s:option(Value, "mptcp_add_addr_accepted", translate("Max add address"),translate("specifies the maximum number of ADD_ADDR (add address) suboptions accepted for each MPTCP connection"))
     o.datatype = "uinteger"
     o.rmempty = false
     o.default = 1
 
-    o = s:option(Value, "mptcp_stale_loss_cnt", translate("The number of MPTCP-level retransmission intervals with no traffic and pending outstanding data on a given subflow required to declare it stale"))
+    o = s:option(Value, "mptcp_add_addr_timeout", translate("Control message timeout"),translate("Set the timeout after which an ADD_ADDR (add address) control message will be resent to an MPTCP peer that has not acknowledged a previous ADD_ADDR message."))
     o.datatype = "uinteger"
     o.rmempty = false
-    o.default = 4
+    o.default = 120
+
 else
     o = s:option(Value, "mptcp_fullmesh_num_subflows", translate("Fullmesh subflows for each pair of IP addresses"))
     o.datatype = "uinteger"
@@ -113,5 +193,8 @@ o:value("backup", translate("backup"))
 --o:value("handover", translate("handover"))
 o.default = "off"
 
+function m.on_after_apply(self,map)
+    sys.call('/etc/init.d/mptcp reload')
+end
 
 return m

@@ -30,7 +30,6 @@ _openvpnbonding() {
 				set openvpn.omr_bonding_${interface}.remote="${remoteip}"
 				set openvpn.omr_bonding_${interface}.local="${localip}"
 				set openvpn.omr_bonding_${interface}.lport='0'
-				set openvpn.omr_bonding_${interface}.ncp_disable='1'
 				set openvpn.omr_bonding_${interface}.auth_nocache='1'
 				set openvpn.omr_bonding_${interface}.proto='udp'
 				set openvpn.omr_bonding_${interface}.client='1'
@@ -116,5 +115,5 @@ start_service()
 }
 
 service_triggers() {
-	procd_add_reload_trigger "openvpn" "network" "openmptcprouter"
+	procd_add_reload_trigger "openvpn" "network"
 }

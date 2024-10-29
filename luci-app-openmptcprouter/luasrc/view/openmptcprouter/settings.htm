@@ -190,6 +190,12 @@
 		</div>
 	    </div>
 	    <div class="cbi-value">
+		<label class="cbi-value-title"><%:Disable 6in4%></label>
+		<div class="cbi-value-field">
+		    <input type="checkbox" name="enable6in4" class="cbi-input-checkbox" value="1" <% if luci.model.uci.cursor():get("openmptcprouter","settings","disable_6in4") == "1" then %>checked<% end %>>
+		</div>
+	    </div>
+	    <div class="cbi-value">
 		<label class="cbi-value-title"><%:Disable external check%></label>
 		<div class="cbi-value-field">
 		    <input type="checkbox" name="externalcheck" class="cbi-input-checkbox" value="0" <% if luci.model.uci.cursor():get("openmptcprouter","settings","external_check") == "0" then %>checked<% end %>>
@@ -292,15 +298,30 @@
 		</div>
 	    </div>
 	    <div class="cbi-value">
-		<label class="cbi-value-title"><%:When proxy shadowsocks is used, use it for UDP if VPN down%></label>
+		<label class="cbi-value-title"><%:Disable ModemManager%></label>
+		<div class="cbi-value-field">
+		    <input type="checkbox" name="disablemodemmanager" class="cbi-input-checkbox" value="1" <% if luci.model.uci.cursor():get("openmptcprouter","settings","disable_modemmanager") == "1" then %>checked<% end %>>
+		</div>
+	    </div>
+
+	    <div class="cbi-value">
+		<label class="cbi-value-title"><%:Shadowsocks UDP%></label>
 		<div class="cbi-value-field">
 		    <input type="checkbox" name="shadowsocksudp" class="cbi-input-checkbox" value="1" <% if luci.model.uci.cursor():get("openmptcprouter","settings","shadowsocksudp") == "1" then %>checked<% end %>>
+		    <br />
+		    <div class="cbi-value-description">
+			<%:When proxy shadowsocks is used, use it for UDP if VPN down%>
+		    </div>
 		</div>
 	    </div>
 	    <div class="cbi-value">
-		<label class="cbi-value-title"><%:When proxy V2Ray is used, use it for UDP%></label>
+		<label class="cbi-value-title"><%:V2Ray/XRay UDP%></label>
 		<div class="cbi-value-field">
 		    <input type="checkbox" name="v2rayudp" class="cbi-input-checkbox" value="1" <% if luci.model.uci.cursor():get("v2ray","main_transparent_proxy","redirect_udp") == "1" then %>checked<% end %>>
+		    <br />
+		    <div class="cbi-value-description">
+			<%:When proxy V2Ray/XRay VLESS, VMESS or Trojan is used, use it for UDP%>
+		    </div>
 		</div>
 	    </div>
 	    <div class="cbi-value">
@@ -320,6 +341,16 @@
 		    <br />
 		    <div class="cbi-value-description">
 			<%:Disable server ping status check%>
+		    </div>
+		</div>
+	    </div>
+	    <div class="cbi-value">
+		<label class="cbi-value-title"><%:Restrict proxy to LAN zone%></label>
+		<div class="cbi-value-field">
+		    <input type="checkbox" name="restricttolan" class="cbi-input-checkbox" value="1" <% if luci.model.uci.cursor():get("openmptcprouter","settings","restrict_to_lan") == "1" then %>checked<% end %>>
+		    <br />
+		    <div class="cbi-value-description">
+			<%:Authorize access to proxy only from LAN firewall zone%>
 		    </div>
 		</div>
 	    </div>
